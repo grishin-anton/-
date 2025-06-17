@@ -135,22 +135,19 @@ class CalculatorApp:
             right_val = float(right)
 
             if "x" in left:
-                left = left.replace("+", "")
+                # Разделяем на термины
                 terms = []
-                i = 0
-                while i < len(left):
-                    if left[i] in "+-":
-                        terms.append(left[i])
-                        i += 1
+                term = ""
+                for char in left:
+                    if char in "+-":
+                        if term:
+                            terms.append(term)
+                        term = char  # Начинаем новый термин с знака
                     else:
-                        num = ""
-                        while i < len(left) and (left[i].isdigit() or left[i] == '.'):
-                            num += left[i]
-                            i += 1
-                        if i < len(left) and left[i] == 'x':
-                            num += 'x'
-                            i += 1
-                        terms.append(num)
+                        term += char
+                if term:
+                    terms.append(term)  # Добавляем последний термин
+
                 a = 0
                 b = 0
                 for term in terms:
@@ -164,13 +161,17 @@ class CalculatorApp:
                             coeff = float(coeff)
                         a += coeff
                     else:
-                        if term in ['+', '-']:
-                            continue
                         b += float(term)
-                x = (right_val - b)/a
+
+                if a == 0:
+                    return "Нет решения, так как коэффициент перед x равен 0."
+                
+                x = (right_val - b) / a
                 return f"Решение: x = {x}"
             else:
                 return "Уравнение должно содержать переменную x."
+        except ValueError:
+            return "Ошибка: неверный формат уравнения."
         except Exception as e:
             return f"Ошибка при решении уравнения: {str(e)}"
 
@@ -211,8 +212,15 @@ class CalculatorApp:
             messagebox.showerror("Ошибка", f"Неверный ввод для графика: {str(e)}")
 
     def on_graph_window_close(self):
-        self.graph_window.destroy()
-        self.graph_window = None
+        if self.graph_window:
+            self.graph_window.destroy()
+            self.graph_window = None
+    
+    def close_graph_window(self):
+        # Безопасное закрытие окна графика, если оно открыто
+        if self.graph_window and tk.Toplevel.winfo_exists(self.graph_window):
+            self.graph_window.destroy()
+            self.graph_window = None
 
 if __name__ == "__main__":
     root = tk.Tk()
