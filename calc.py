@@ -1,202 +1,220 @@
 import tkinter as tk
-from tkinter import messagebox
-import matplotlib.pyplot as plt
+from tkinter import messagebox, ttk
 import numpy as np
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+class CalculatorApp:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Многофункциональный Калькулятор")
+        self.master.geometry("500x400")  # Увеличенный размер окна
+        self.master.resizable(False, False)
 
-# Открытие окна калькулятора
-def open_calculator():
-    calc_window = tk.Toplevel(root)
-    calc_window.title("Калькулятор")
-    calc_window.geometry("300x400")
+        # Основной стиль
+        style = ttk.Style(self.master)
+        style.theme_use('clam')
+        style.configure('TButton', font=('Segoe UI', 11))
+        style.configure('TLabel', font=('Segoe UI', 12))
+        style.configure('Header.TLabel', font=('Segoe UI', 14, 'bold'))
 
-    # Поле для ввода выражения
-    entry_field = tk.Entry(calc_window, width=25, font=("Arial", 18), justify='right')
-    entry_field.grid(row=0, column=0, columnspan=4, pady=10)
+        # Режим работы: combobox для выбора
+        modes_frame = ttk.Frame(self.master)
+        modes_frame.pack(pady=10, padx=10, fill='x')
 
-    # Обработка нажатия кнопки числа/оператора
-    def press_button(symbol):
-        entry_field.insert(tk.END, symbol)
+        ttk.Label(modes_frame, text="Выберите режим работы:", style='Header.TLabel').pack(anchor='w')
 
-    # Очистка поля ввода
-    def clear_input():
-        entry_field.delete(0, tk.END)
+        self.mode_var = tk.StringVar(value="Калькулятор")
+        self.mode_cb = ttk.Combobox(
+            modes_frame,
+            textvariable=self.mode_var,
+            values=["Калькулятор", "Решение уравнений", "Построение графика"],
+            state="readonly",
+            font=('Segoe UI', 11)
+        )
+        self.mode_cb.pack(fill='x', pady=5)
+        self.mode_cb.bind("<<ComboboxSelected>>", self.mode_changed)
 
-    # Вычисление выражения
-    def evaluate_expression():
+        # Ввод данных
+        input_frame = ttk.Frame(self.master)
+        input_frame.pack(pady=10, padx=10, fill='x')
+
+        ttk.Label(input_frame, text="Введите выражение:", style='TLabel').pack(anchor='w')
+
+        self.input_entry = ttk.Entry(input_frame, font=('Segoe UI', 13))
+        self.input_entry.pack(fill='x', pady=5)
+
+        # Кнопки действий
+        btns_frame = ttk.Frame(self.master)
+        btns_frame.pack(pady=10, padx=10, fill='x')
+
+        self.calc_button = ttk.Button(btns_frame, text="Вычислить / Решить", command=self.calculate)
+        self.calc_button.pack(side='left', expand=True, fill='x', padx=(0, 5))
+
+        self.graph_button = ttk.Button(btns_frame, text="Построить график", command=self.plot_graph)
+        self.graph_button.pack(side='left', expand=True, fill='x', padx=(5, 0))
+
+        # Результат
+        output_frame = ttk.Frame(self.master)
+        output_frame.pack(pady=10, padx=10, fill='both', expand=True)
+
+        ttk.Label(output_frame, text="Результат:", style='Header.TLabel').pack(anchor='w')
+
+        self.result_text = tk.Text(output_frame, height=7, font=('Segoe UI', 11), state='disabled', wrap='word')
+        self.result_text.pack(fill='both', expand=True)
+
+        # Изначально скрываем кнопку построения графика (не калькулятор/уравнения)
+        self.graph_button.pack_forget()
+
+        self.update_placeholder()
+
+        self.graph_window = None  # Ссылка на окно графика, если открыто
+
+    def mode_changed(self, event=None):
+        mode = self.mode_var.get()
+        self.result_text.config(state='normal')
+        self.result_text.delete('1.0', tk.END)
+        self.result_text.config(state='disabled')
+        if mode == "Калькулятор":
+            self.calc_button.config(text="Вычислить")
+            self.graph_button.pack_forget()
+            self.close_graph_window()
+        elif mode == "Решение уравнений":
+            self.calc_button.config(text="Решить")
+            self.graph_button.pack_forget()
+            self.close_graph_window()
+        else:  # Построение графика
+            self.calc_button.config(text="Вычислить / Решить")
+            self.graph_button.pack(side='left', expand=True, fill='x', padx=(5, 0))
+        self.update_placeholder()
+
+    def update_placeholder(self):
+        mode = self.mode_var.get()
+        self.input_entry.delete(0, tk.END)
+        if mode == "Калькулятор":
+            self.input_entry.insert(0, "3 * (2 + 1)")
+        elif mode == "Решение уравнений":
+            self.input_entry.insert(0, "2x + 3 = 7")
+        else:
+            self.input_entry.insert(0, "np.sin(x)")
+
+    def append_result(self, text):
+        self.result_text.config(state='normal')
+        self.result_text.insert(tk.END, text + "\n")
+        self.result_text.config(state='disabled')
+        self.result_text.see(tk.END)
+
+    def calculate(self):
+        input_text = self.input_entry.get()
+        mode = self.mode_var.get()
         try:
-            expr = entry_field.get().replace("^", "**")
-            # Определяем функции для поддержки математических функций
-            math_functions = {
-                "sin": np.sin,
-                "cos": np.cos,
-                "log": np.log,
-                "sqrt": np.sqrt,
-                "exp": np.exp,
-                "x": None  # переменная x для графиков
-            }
-            result = eval(expr, math_functions)
-            entry_field.delete(0, tk.END)
-            entry_field.insert(tk.END, str(result))
+            if mode == "Калькулятор":
+                result = eval(input_text, {"__builtins__": None}, {"np": np})
+                self.result_text.config(state='normal')
+                self.result_text.delete('1.0', tk.END)
+                self.append_result(f"Результат: {result}")
+            elif mode == "Решение уравнений":
+                self.result_text.config(state='normal')
+                self.result_text.delete('1.0', tk.END)
+                solution = self.solve_equation(input_text)
+                self.append_result(f"{solution}")
+            else:
+                self.result_text.config(state='normal')
+                self.result_text.delete('1.0', tk.END)
+                self.append_result("Для построения графика используйте кнопку 'Построить график'")
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Некорректный ввод: {e}")
+            messagebox.showerror("Ошибка", "Неверный ввод. Пожалуйста, попробуйте снова.")
+            self.append_result(f"Ошибка: {str(e)}")
 
-    # Создание кнопок калькулятора
-    buttons_symbols = [
-        "7", "8", "9", "+",
-        "4", "5", "6", "-",
-        "1", "2", "3", "*",
-        "0", ".", "/", "="
-    ]
-
-    for idx, symbol in enumerate(buttons_symbols):
-        def create_command(s=symbol):
-            if s == "=":
-                return evaluate_expression
-            else:
-                return lambda: press_button(s)
-
-        btn = tk.Button(calc_window, text=symbol, width=5, height=2, font=("Arial", 14), command=create_command())
-        btn.grid(row=1 + idx // 4, column=idx % 4)
-
-    # Кнопка очистки
-    tk.Button(calc_window, text="C", width=5, height=2, font=("Arial", 14), command=clear_input).grid(row=5, column=0)
-
-
-# Открытие окна решения уравнений
-def open_equation_solver():
-    solver_window = tk.Toplevel(root)
-    solver_window.title("Решение уравнений")
-    solver_window.geometry("300x300")
-
-    tk.Label(solver_window, text="Выберите тип уравнения:").pack(pady=10)
-
-    # Решение линейного уравнения
-    def solve_linear_equation():
-        a = get_numeric_input("Введите коэффициент a:")
-        b = get_numeric_input("Введите коэффициент b:")
-        if a is not None and b is not None:
-            if a == 0 and b == 0:
-                result_text = "Уравнение имеет бесконечно много решений"
-            elif a == 0:
-                result_text = "Уравнение не имеет решений"
-            else:
-                x_solution = -b / a
-                result_text = f"Решение линейного уравнения: x = {x_solution}"
-            messagebox.showinfo("Результат", result_text)
-
-    # Решение квадратного уравнения
-    def solve_quadratic_equation():
-        a = get_numeric_input("Введите коэффициент a:")
-        b = get_numeric_input("Введите коэффициент b:")
-        c = get_numeric_input("Введите коэффициент c:")
-        if None not in (a, b, c):
-            discriminant = b ** 2 - 4 * a * c
-            if a == 0:
-                # Это превращается в линейное уравнение
-                solve_linear_equation()
-            elif discriminant > 0:
-                sqrt_D = discriminant ** 0.5
-                x1 = (-b + sqrt_D) / (2 * a)
-                x2 = (-b - sqrt_D) / (2 * a)
-                messagebox.showinfo("Результат", f"Два решения: x1 = {x1}, x2 = {x2}")
-            elif discriminant == 0:
-                x = -b / (2 * a)
-                messagebox.showinfo("Результат", f"Одно решение: x = {x}")
-            else:
-                messagebox.showinfo("Результат", "Нет действительных решений")
-
-    # Кнопки для выбора типа уравнения
-    tk.Button(solver_window, text="Линейное уравнение", font=("Arial", 12), command=solve_linear_equation).pack(pady=5)
-    tk.Button(solver_window, text="Квадратное уравнение", font=("Arial", 12), command=solve_quadratic_equation).pack(
-        pady=5)
-
-
-# Вспомогательная функция для получения числового ввода
-def get_numeric_input(prompt):
-    input_window = tk.Toplevel(root)
-    input_window.title("Ввод числа")
-    input_window.geometry("250x100")
-    tk.Label(input_window, text=prompt).pack(pady=5)
-    entry_field = tk.Entry(input_window)
-    entry_field.pack(pady=5)
-
-    result_value = tk.DoubleVar()
-
-    def submit():
+    def solve_equation(self, equation):
         try:
-            value = float(entry_field.get())
-            result_value.set(value)
-            input_window.destroy()
-        except ValueError:
-            messagebox.showerror("Ошибка", "Введите корректное число!")
+            eq = equation.replace(" ", "")
+            if "=" not in eq:
+                return "Уравнение должно содержать знак '='."
+            left, right = eq.split("=")
+            right_val = float(right)
 
-    tk.Button(input_window, text="OK", command=submit).pack()
-    input_window.wait_window()
-    # Возвращаем число или None, если ввод некорректен
-    return result_value.get() if entry_field.get() != "" else None
-
-
-# Открытие окна построения графика
-def open_graph_plotter():
-    plot_window = tk.Toplevel(root)
-    plot_window.title("Построение графика")
-    plot_window.geometry("500x500")
-
-    # Поле для ввода функции
-    func_entry = tk.Entry(plot_window, font=("Arial", 12))
-    func_entry.pack(pady=10)
-    func_entry.insert(0, "x^2 + sin(x)")
-
-    # Создаем фигуру для графика
-    fig, ax = plt.subplots(figsize=(4, 4))
-    canvas = FigureCanvasTkAgg(fig, master=plot_window)
-    canvas.get_tk_widget().pack()
-
-    def plot_function():
-        expr_str = func_entry.get().replace("^", "**")
-        functions_dict = {
-            "x": None,
-            "sin": np.sin,
-            "cos": np.cos,
-            "log": np.log,
-            "sqrt": np.sqrt,
-            "exp": np.exp
-        }
-        try:
-            def evaluate_func(x):
-                functions_dict["x"] = x
-                return eval(expr_str, functions_dict)
-
-            x_vals = np.linspace(-10, 10, 400)
-            y_vals = evaluate_func(x_vals)
-
-            ax.clear()
-            ax.plot(x_vals, y_vals)
-            ax.set_xlabel("x")
-            ax.set_ylabel("f(x)")
-            ax.grid(True)
-            ax.set_title("График функции")
-            canvas.draw()
+            if "x" in left:
+                left = left.replace("+", "")
+                terms = []
+                i = 0
+                while i < len(left):
+                    if left[i] in "+-":
+                        terms.append(left[i])
+                        i += 1
+                    else:
+                        num = ""
+                        while i < len(left) and (left[i].isdigit() or left[i] == '.'):
+                            num += left[i]
+                            i += 1
+                        if i < len(left) and left[i] == 'x':
+                            num += 'x'
+                            i += 1
+                        terms.append(num)
+                a = 0
+                b = 0
+                for term in terms:
+                    if 'x' in term:
+                        coeff = term.replace('x', '')
+                        if coeff in ['', '+']:
+                            coeff = 1
+                        elif coeff == '-':
+                            coeff = -1
+                        else:
+                            coeff = float(coeff)
+                        a += coeff
+                    else:
+                        if term in ['+', '-']:
+                            continue
+                        b += float(term)
+                x = (right_val - b)/a
+                return f"Решение: x = {x}"
+            else:
+                return "Уравнение должно содержать переменную x."
         except Exception as e:
-            ax.clear()
-            ax.text(0.5, 0.5, f"Ошибка: {e}", ha='center', va='center', fontsize=10)
-            canvas.draw()
+            return f"Ошибка при решении уравнения: {str(e)}"
 
-    tk.Button(plot_window, text="Построить график", font=("Arial", 12), command=plot_function).pack(pady=5)
+    def plot_graph(self):
+        if self.mode_var.get() != "Построение графика":
+            return
+        function = self.input_entry.get()
+        if self.graph_window and tk.Toplevel.winfo_exists(self.graph_window):
+            # обновим график в существующем окне
+            self.update_graph(function)
+        else:
+            self.graph_window = tk.Toplevel(self.master)
+            self.graph_window.title("График функции")
+            self.graph_window.geometry("800x600")
+            self.graph_window.protocol("WM_DELETE_WINDOW", self.on_graph_window_close)
 
+            self.fig, self.ax = plt.subplots(figsize=(8, 6))
+            self.canvas = FigureCanvasTkAgg(self.fig, master=self.graph_window)
+            self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
 
-# Основное окно
-root = tk.Tk()
-root.title("Многофункциональный калькулятор")
-root.geometry("300x250")
+            self.update_graph(function)
 
-tk.Label(root, text="Выберите действие:", font=("Arial", 14)).pack(pady=15)
+    def update_graph(self, function):
+        try:
+            x = np.linspace(-10, 10, 400)
+            y = eval(function, {"x": x, "np": np})
+            self.ax.clear()
+            self.ax.plot(x, y, label=f'y = {function}')
+            self.ax.set_title('График функции')
+            self.ax.set_xlabel('x')
+            self.ax.set_ylabel('y')
+            self.ax.axhline(0, color='black', linewidth=0.5, ls='--')
+            self.ax.axvline(0, color='black', linewidth=0.5, ls='--')
+            self.ax.grid(True)
+            self.ax.legend()
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Неверный ввод для графика: {str(e)}")
 
-tk.Button(root, text="Калькулятор", width=20, font=("Arial", 12), command=open_calculator).pack(pady=5)
-tk.Button(root, text="Решение уравнений", width=20, font=("Arial", 12), command=open_equation_solver).pack(pady=5)
-tk.Button(root, text="Построение графиков", width=20, font=("Arial", 12), command=open_graph_plotter).pack(pady=5)
-tk.Button(root, text="Выход", width=20, font=("Arial", 12), command=root.destroy).pack(pady=20)
+    def on_graph_window_close(self):
+        self.graph_window.destroy()
+        self.graph_window = None
 
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = CalculatorApp(root)
+    root.mainloop()
